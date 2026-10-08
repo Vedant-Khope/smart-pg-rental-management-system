@@ -24,7 +24,6 @@ import java.util.UUID;
  * <p>Handles operations related to Rooms within a Property.
  */
 @RestController
-@RequestMapping("/api/v1/properties/{propertyId}/rooms")
 public class RoomController {
 
     private final RoomService roomService;
@@ -37,14 +36,14 @@ public class RoomController {
      * OWNER API: Creates a new room within a property.
      * Enforces that only users with the OWNER role can access this.
      */
-    @PostMapping
+    @PostMapping("/api/v1/properties/{propertyId}/rooms")
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<ApiResponse<RoomResponse>> createRoom(
             @PathVariable UUID propertyId,
             @Valid @RequestBody CreateRoomRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
 
-        RoomResponse response = roomService.createRoom(propertyId, request, currentUser.getId());
+        RoomResponse response = roomService.createRoom(propertyId, request, currentUser.getUserId());
         
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -54,13 +53,12 @@ public class RoomController {
     /**
      * OWNER API: Lists all rooms in a property with pagination.
      */
-    @GetMapping("/owner")
+    @GetMapping("/api/v1/properties/{propertyId}/rooms/owner")
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<ApiResponse<Page<RoomResponse>>> getOwnerRooms(
             @PathVariable UUID propertyId,
             @PageableDefault(size = 10, sort = "roomNumber") Pageable pageable) {
 
-        // Ideally, we'd also verify the owner owns this property inside the service layer here.
         Page<RoomResponse> rooms = roomService.getRoomsByProperty(propertyId, pageable);
         
         return ResponseEntity.ok(ApiResponse.success("Rooms fetched successfully", rooms));
@@ -70,7 +68,7 @@ public class RoomController {
      * PUBLIC/TENANT API: Lists all AVAILABLE rooms for a property.
      * Accessible by any authenticated user (tenants).
      */
-    @GetMapping("/available")
+    @GetMapping("/api/v1/properties/{propertyId}/rooms/available")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<RoomResponse>>> getAvailableRooms(
             @PathVariable UUID propertyId) {
@@ -78,5 +76,17 @@ public class RoomController {
         List<RoomResponse> availableRooms = roomService.getAvailableRooms(propertyId);
         
         return ResponseEntity.ok(ApiResponse.success("Available rooms fetched successfully", availableRooms));
+    }
+
+    /**
+     * PUBLIC/TENANT/OWNER API: Gets full room detail including beds list.
+     */
+    @GetMapping("/api/v1/rooms/{roomId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<RoomResponse>> getRoomById(
+            @PathVariable UUID roomId) {
+
+        RoomResponse response = roomService.getRoomWithBeds(roomId);
+        return ResponseEntity.ok(ApiResponse.success("Room details fetched successfully", response));
     }
 }

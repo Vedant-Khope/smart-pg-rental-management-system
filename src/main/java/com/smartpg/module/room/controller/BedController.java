@@ -18,10 +18,9 @@ import java.util.UUID;
 /**
  * REST Controller for Bed endpoints.
  *
- * <p>Handles operations like adding beds and atomic bed reservations.
+ * <p>Handles operations like adding beds, atomic bed reservations, releases, and maintenance.
  */
 @RestController
-@RequestMapping("/api/v1/rooms/{roomId}/beds")
 public class BedController {
 
     private final BedService bedService;
@@ -33,14 +32,14 @@ public class BedController {
     /**
      * OWNER API: Adds a new bed to a room.
      */
-    @PostMapping
+    @PostMapping("/api/v1/rooms/{roomId}/beds")
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<ApiResponse<BedResponse>> addBed(
             @PathVariable UUID roomId,
             @Valid @RequestBody CreateBedRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
 
-        BedResponse response = bedService.addBedToRoom(roomId, request, currentUser.getId());
+        BedResponse response = bedService.addBedToRoom(roomId, request, currentUser.getUserId());
         
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -50,7 +49,7 @@ public class BedController {
     /**
      * PUBLIC/TENANT API: Lists all beds in a room.
      */
-    @GetMapping
+    @GetMapping("/api/v1/rooms/{roomId}/beds")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<BedResponse>>> getBeds(
             @PathVariable UUID roomId) {
@@ -60,17 +59,56 @@ public class BedController {
     }
 
     /**
-     * TENANT API: Reserves a bed temporarily during the booking flow.
+     * TENANT API: Reserves a bed temporarily during the booking flow (15-minute window).
      */
-    @PostMapping("/{bedId}/reserve")
+    @PostMapping("/api/v1/rooms/{roomId}/beds/{bedId}/reserve")
     @PreAuthorize("hasRole('TENANT')")
     public ResponseEntity<ApiResponse<Void>> reserveBed(
             @PathVariable UUID roomId,
             @PathVariable UUID bedId,
             @AuthenticationPrincipal UserPrincipal currentUser) {
 
-        bedService.reserveBed(bedId, currentUser.getId());
+        bedService.reserveBed(bedId, currentUser.getUserId());
         
         return ResponseEntity.ok(ApiResponse.success("Bed reserved successfully for 15 minutes", null));
+    }
+
+    /**
+     * OWNER API: Releases a bed back to AVAILABLE when a tenant vacates.
+     */
+    @PatchMapping("/api/v1/beds/{bedId}/release")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<ApiResponse<Void>> releaseBed(
+            @PathVariable UUID bedId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+
+        bedService.releaseBed(bedId, currentUser.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("Bed released back to AVAILABLE successfully"));
+    }
+
+    /**
+     * OWNER API: Marks a bed as UNDER_MAINTENANCE.
+     */
+    @PatchMapping("/api/v1/beds/{bedId}/maintenance")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<ApiResponse<Void>> markUnderMaintenance(
+            @PathVariable UUID bedId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+
+        bedService.markUnderMaintenance(bedId, currentUser.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("Bed marked as UNDER_MAINTENANCE"));
+    }
+
+    /**
+     * OWNER API: Restores a bed from UNDER_MAINTENANCE back to AVAILABLE.
+     */
+    @PatchMapping("/api/v1/beds/{bedId}/restore")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<ApiResponse<Void>> restoreFromMaintenance(
+            @PathVariable UUID bedId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+
+        bedService.restoreFromMaintenance(bedId, currentUser.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("Bed restored to AVAILABLE"));
     }
 }
